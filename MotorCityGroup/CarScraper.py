@@ -91,9 +91,8 @@ class CarScraper:
 
         print(vehicle_row)
         
-        v = Vehicle(vehicle_row)
 
-        return vehcile_row
+        return vehicle_row 
 
     def search_page(self, generic_search_url, id_number):
         ''' 
@@ -130,7 +129,7 @@ class CarScraper:
         vehicle_ref = ""
 
         a = container.find("a", href=True)
-
+#FLAG
         vehicle_ref = a["href"]
 
         generic_vehicle_url = "https://www.citymotorgroup.co.nz{0}"
@@ -147,14 +146,14 @@ class HTMLFormatter:
     '''
     def __init__(self, vehicle_rows):
         
-        self.vehicles = []
+        vehicles = []
         for vehicle_row in vehicle_rows:
-            self.vehicles.append(
+            vehicles.append(
                 self.vehicle_list_to_dict(vehicle_row)
             )
 
         # Index of which s3copyX each detail is.
-        index = {
+        self.index = {
             "CCs": 5,
             "Fuel Type": 6,
             "Odo": 7,
@@ -162,7 +161,33 @@ class HTMLFormatter:
             "Price per Week": 9
         }
 
-        self.soup = BeautifulSoup("/Resources/panel.html")
+        panel_url = "./Resources/panel.html"
+        print("Fetching panel template from {0}".format(panel_url))
+        self.soup = BeautifulSoup(panel_url, 'html.parser')
+
+        print("Entering Details into HTML Template")
+
+        for vehicle in vehicles:
+            self.enter_details(vehicles.index(vehicle), vehicle)
+            
+        
+        fullsoup = BeautifulSoup(open("./Resources/fulltemp.html"),'html.parser')
+
+        entry = fullsoup.find("table", {"mc:variant":"Section 3 - Body"})
+
+        entry.replaceWith(soup)
+
+        print("Inserted.")
+
+        full_email_url = "/Filled/full_edited_email.html" 
+        print("Writing to {0}...".format(full_email_url))
+
+        with open(full_email_url, "w") as writefile:
+            writefile.write(str(fullsoup))
+
+        print("Writing successful, ending script")
+
+        
 
     def vehicle_list_to_dict(self, details):
         detail_dict = {}
@@ -179,13 +204,15 @@ class HTMLFormatter:
 
 
     def find_element(self, detail, iteration):
-        if detail == "Title":
+        if detail == "Name":
             class_string = "s3title{0}".format(iteration + 1)
+
         elif detail == "Total Price":
             class_string = "s3price{0}".format(iteration + 1)
+
         else:
             class_string = "s3copy{0}".format(
-                index[detail] + (iteration * 9)
+                self.index[detail] + (iteration * 9)
             )
 
         print("Looking for:", class_string)
@@ -195,6 +222,7 @@ class HTMLFormatter:
         return self.soup.find("td", class_dict)
                       
     def enter_details(self, iteration, vehicle):
+        print("Detail dictionary: {0}".format(vehicle))
         name = self.find_element("Name", iteration)
         name.string = vehicle["Name"]
 
@@ -242,6 +270,20 @@ vehicle_csvs = "vehicle-details-{0}.csv".format(
 )
 
 print("Writing vehicle rows to {0}".format(vehicle_csvs))
+
+
+vehicle_details_list = []
+
+for url in urls:
+    if url.startswith("ID: "): # This is the start of the string that says the ID wasn't found.
+        pass
+    else:
+        vehicle_details_list.append(cs.scrape_vehicle(url))
+
+#FLAG
+formatter = HTMLFormatter(vehicle_details_list)
+
+
 
 with open(vehicle_csvs, "w") as open_file:
     writer = csv.writer(open_file)
