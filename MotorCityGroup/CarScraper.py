@@ -77,7 +77,7 @@ class CarScraper:
 
         return odometer, ccs, fuel_type, trans
 
-    def scrape_car(self, url):
+    def scrape_vehicle(self, url):
         response = requests.get(url)
 
         html_soup = BeautifulSoup(response.text, 'html.parser')
@@ -97,7 +97,7 @@ class CarScraper:
 
     def search_page(self, generic_search_url, id_number):
         ''' 
-            This takes from the generic search page and find the associated car page for the id.
+            This takes from the generic search page and find the associated vehicle page for the id.
         '''
         search_url = generic_search_url.format(id_number)
 
@@ -143,11 +143,16 @@ class CarScraper:
 class HTMLFormatter:
     '''
     Transfers the Car details into the Email Template.
-    @param vehicle_rows a list of lists, containing car details.
+    @param vehicle_rows a list of lists, containing vehicle details.
     '''
     def __init__(self, vehicle_rows):
-        self.vehicle_rows = vehicle_rows
         
+        self.vehicles = []
+        for vehicle_row in vehicle_rows:
+            self.vehicles.append(
+                self.vehicle_list_to_dict(vehicle_row)
+            )
+
         # Index of which s3copyX each detail is.
         index = {
             "CCs": 5,
@@ -156,14 +161,66 @@ class HTMLFormatter:
             "Trans": 8,
             "Price per Week": 9
         }
-        
-    def 
-        
+
+        self.soup = BeautifulSoup("/Resources/panel.html")
+
+    def vehicle_list_to_dict(self, details):
+        detail_dict = {}
+
+        detail_dict["Name"]             = details[0]
+        detail_dict["Total Price"]      = details[1]
+        detail_dict["CCs"]              = details[2]
+        detail_dict["Price per Week"]   = details[3] 
+        detail_dict["Fuel Type"]        = details[4]
+        detail_dict["Odo"]              = details[5]
+        detail_dict["Transmission"]     = details[6]
+
+        return detail_dict
+
+
+    def find_element(self, detail, iteration):
+        if detail == "Title":
+            class_string = "s3title{0}".format(iteration + 1)
+        elif detail == "Total Price":
+            class_string = "s3price{0}".format(iteration + 1)
+        else:
+            class_string = "s3copy{0}".format(
+                index[detail] + (iteration * 9)
+            )
+
+        print("Looking for:", class_string)
+
+        class_dict = {"mc:edit":class_string}
+
+        return self.soup.find("td", class_dict)
+                      
+    def enter_details(self, iteration, vehicle):
+        name = self.find_element("Name", iteration)
+        name.string = vehicle["Name"]
+
+        totalprice = find_element("Total Price", iteration)
+        totalprice.string = vehicle["Total Price"]
+
+        ccs = self.find_element("CCs",iteration) 
+        ccs.string = vehicle["CCs"]
+
+        pwprice = self.find_element("Price per Week", iteration)
+        pwprice.span.string = vehicle["Price per Week"]
+
+        fueltype = self.find_element("Fuel Type", iteration)
+        fueltype.string = vehicle["Fuel Type"]
+
+        odo = self.find_element("Odo", iteration) 
+        odo.string = vehicle["Odo"]
+
+        trans = self.find_element("Trans", iteration)
+        trans.string = vehicle["Transmission"]
+              
 
 import csv
 import datetime as dt
 
-vehicle_ids = str(input("File with car IDs. > "))
+vehicle_ids = str(input("File with vehicle IDs. > "))
 print("Reading urls from file...")
 
 urls = []
@@ -180,19 +237,19 @@ with open(vehicle_ids, "r") as open_file:
         url = cs.convert_search(id)
         urls.append(url)
 
-car_csvs = "car-details-{0}.csv".format(
+vehicle_csvs = "vehicle-details-{0}.csv".format(
     dt.datetime.now().strftime("%x").replace("/", "-")
 )
 
-print("Writing car rows to {0}".format(car_csvs))
+print("Writing vehicle rows to {0}".format(vehicle_csvs))
 
-with open(car_csvs, "w") as open_file:
+with open(vehicle_csvs, "w") as open_file:
     writer = csv.writer(open_file)
 
     for url in urls:
         if url.startswith("ID: "): # This is the start of the string that says the ID wasn't found.
             writer.writerow(url)
         else:
-            writer.writerow(cs.scrape_car(url))
+            writer.writerow(cs.scrape_vehicle(url))
 
 print("done")
